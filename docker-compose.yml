@@ -1,0 +1,26 @@
+name: meeting-room-tracker
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: infra/backend.Dockerfile
+    env_file: .env
+    environment:
+      MRT_DB_PATH: /app/data/meeting_rooms.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    restart: unless-stopped
