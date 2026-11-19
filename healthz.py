@@ -1,22 +1,34 @@
 """Health check for the Meeting Room Availability Tracker.
 
 Usage:
-    python healthz.py                       # checks http://localhost:8000 and the database file
-    python healthz.py --api http://localhost:8080/api
-    python healthz.py --db backend/data/meeting_rooms.db
+    python healthz.py                              # API on http://127.0.0.1:8000/api and PostgreSQL
+    python healthz.py --api http://127.0.0.1:8000/api --skip-db
+
+Database settings are read from backend\\.env (or the environment): DB_NAME, DB_USER,
+DB_PASSWORD, DB_HOST, DB_PORT.
 
 Exit code 0 when every check passes, 1 otherwise.
 """
 import argparse
 import json
-import sqlite3
+import os
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_DB = ROOT / "backend" / "data" / "meeting_rooms.db"
+
+
+def _load_env() -> None:
+    for env_file in (ROOT / ".env", ROOT / "backend" / ".env"):
+        if not env_file.exists():
+            continue
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
 
 
 def check_api(base: str) -> tuple[bool, str]:
@@ -30,36 +42,39 @@ def check_api(base: str) -> tuple[bool, str]:
         return False, f"API {url} unreachable: {exc}"
 
 
-def check_db(path: Path) -> tuple[bool, str]:
-    if not path.exists():
-        return False, f"Database not found at {path} (it is created on first backend start)"
+def check_db() -> tuple[bool, str]:
     try:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
-        try:
-            tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            missing = {"rooms", "employees", "bookings"} - tables
-            if missing:
-                return False, f"Database missing tables: {sorted(missing)}"
+        import psycopg
+    except ImportError:
+        return False, "psycopg is not installed. Activate backend\\.venv and run pip install -r requirements.txt"
+
+    name = os.getenv("DB_NAME", "meeting_rooms")
+    host = os.getenv("DB_HOST", "localhost")
+    port = os.getenv("DB_PORT", "5432")
+    try:
+        with psycopg.connect(
+            dbname=name, user=os.getenv("DB_USER", "meeting_app"), password=os.getenv("DB_PASSWORD", ""),
+            host=host, port=port, connect_timeout=5,
+        ) as conn:
             rooms = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
-            return True, f"Database {path.name} OK ({rooms} rooms)"
-        finally:
-            conn.close()
-    except sqlite3.Error as exc:
-        return False, f"Database check failed: {exc}"
+            return True, f"PostgreSQL {name}@{host}:{port} OK ({rooms} rooms)"
+    except psycopg.OperationalError as exc:
+        return False, f"PostgreSQL {name}@{host}:{port} unreachable: {str(exc).strip()}"
+    except psycopg.errors.UndefinedTable:
+        return False, f"PostgreSQL {name} has no tables yet. Run: python manage.py migrate"
 
 
 def main() -> int:
+    _load_env()
     parser = argparse.ArgumentParser(description="Health check for the room tracker.")
-    parser.add_argument("--api", default="http://localhost:8000/api",
-                        help="API base URL (default: http://localhost:8000/api)")
-    parser.add_argument("--db", default=str(DEFAULT_DB), help="Path to meeting_rooms.db")
-    parser.add_argument("--skip-api", action="store_true", help="Only check the database")
+    parser.add_argument("--api", default="http://127.0.0.1:8000/api",
+                        help="API base URL (default: http://127.0.0.1:8000/api)")
+    parser.add_argument("--skip-db", action="store_true", help="Only check the API")
     args = parser.parse_args()
 
-    results = []
-    if not args.skip_api:
-        results.append(check_api(args.api))
-    results.append(check_db(Path(args.db)))
+    results = [check_api(args.api)]
+    if not args.skip_db:
+        results.append(check_db())
 
     failed = False
     for ok, message in results:

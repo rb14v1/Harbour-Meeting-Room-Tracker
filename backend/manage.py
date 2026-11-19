@@ -1,40 +1,20 @@
-"""Management commands for the Meeting Room Availability Tracker.
+#!/usr/bin/env python
+"""Django's command-line entry point.
 
-    python manage.py migrate      # create the database file and apply pending migrations
-    python manage.py seed         # insert sample rooms and employees (safe to repeat)
-    python manage.py runserver    # start the API on http://127.0.0.1:8000
+    python manage.py migrate
+    python manage.py seed
+    python manage.py runserver
+    python manage.py test
 """
-import argparse
-
-from app.config import DB_PATH
-from app.db.migrate import migrate
-from app.db.seed import seed_database
+import os
+import sys
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Meeting Room Tracker management commands")
-    sub = parser.add_subparsers(dest="command", required=True)
+def main():
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    from django.core.management import execute_from_command_line
 
-    sub.add_parser("migrate", help="Create the database and apply pending migrations")
-    sub.add_parser("seed", help="Insert sample rooms and employees (safe to repeat)")
-
-    run = sub.add_parser("runserver", help="Start the API server")
-    run.add_argument("--host", default="127.0.0.1")
-    run.add_argument("--port", type=int, default=8000)
-    run.add_argument("--no-reload", action="store_true", help="Disable auto-reload on code changes")
-
-    args = parser.parse_args()
-
-    if args.command == "migrate":
-        applied = migrate()
-        print(f"Database: {DB_PATH}")
-        print("Applied: " + (", ".join(applied) if applied else "nothing, database is up to date"))
-    elif args.command == "seed":
-        seed_database()
-        print("Sample data is in place.")
-    elif args.command == "runserver":
-        import uvicorn
-        uvicorn.run("app.main:app", host=args.host, port=args.port, reload=not args.no_reload)
+    execute_from_command_line(sys.argv)
 
 
 if __name__ == "__main__":

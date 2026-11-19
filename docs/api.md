@@ -1,6 +1,6 @@
 # API Reference
 
-Base path: `/api`. Interactive docs at `http://localhost:8000/docs` when the backend runs.
+Base path: `/api`. Requests use JSON. Trailing slashes are not used, for example `/api/rooms`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -17,7 +17,7 @@ Base path: `/api`. Interactive docs at `http://localhost:8000/docs` when the bac
 | PUT | `/bookings/{id}` | Edit a confirmed, upcoming booking (same body as create) |
 | POST | `/bookings/{id}/cancel` | Cancel a confirmed, upcoming booking |
 | GET | `/reports/summary` | Daily/weekly counts, most booked room, utilisation, employee stats |
-| GET | `/health` | Liveness (outside `/api`) |
+| GET | `/health` | Liveness check, returns `{"status": "ok"}` |
 
 ## Example: create booking
 
