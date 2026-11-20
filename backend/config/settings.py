@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -8,13 +9,39 @@ load_dotenv(BASE_DIR.parent / ".env")
 load_dotenv(BASE_DIR / ".env")
 
 
-def _env_list(name: str, default: str) -> list[str]:
-    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+REQUIRED_ENV_VARS = (
+    "DJANGO_SECRET_KEY",
+    "DJANGO_ALLOWED_HOSTS",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_HOST",
+    "CORS_ALLOWED_ORIGINS",
+)
+
+_missing = [name for name in REQUIRED_ENV_VARS if os.getenv(name) is None]
+if _missing:
+    raise ImproperlyConfigured(
+        "Missing required environment variable(s): "
+        + ", ".join(_missing)
+        + ". See .env.example for the full list."
+    )
 
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
-DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+def _env_required(name: str) -> str:
+    value = os.environ[name].strip()
+    if not value:
+        raise ImproperlyConfigured(f"Environment variable {name} must not be empty.")
+    return value
+
+
+def _env_list(name: str) -> list[str]:
+    return [item.strip() for item in _env_required(name).split(",") if item.strip()]
+
+
+SECRET_KEY = _env_required("DJANGO_SECRET_KEY")
+DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -59,10 +86,11 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "meeting_rooms"),
-        "USER": os.getenv("DB_USER", "meeting_app"),
-        "PASSWORD": os.getenv("DB_PASSWORD", ""),
-        "HOST": os.getenv("DB_HOST", "localhost"),
+        "NAME": _env_required("DB_NAME"),
+        "USER": _env_required("DB_USER"),
+        # May be empty when the database uses trust/peer authentication.
+        "PASSWORD": os.environ["DB_PASSWORD"],
+        "HOST": _env_required("DB_HOST"),
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
@@ -84,6 +112,4 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "meetings.exceptions.exception_handler",
 }
 
-CORS_ALLOWED_ORIGINS = _env_list(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080"
-)
+CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS")
