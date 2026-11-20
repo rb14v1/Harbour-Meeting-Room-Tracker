@@ -30,8 +30,10 @@ version, the build must not be deployed until the pin is updated.
 | Package | Old version | New version | CVEs addressed |
 |---------|-------------|-------------|----------------|
 | Django  | 5.1.4       | 5.1.15      | CVE-2025-57833 (SQL injection via FilteredRelation column aliases), CVE-2025-64459 (SQL injection via `_connector` kwarg in QuerySet/Q), plus the other security fixes released in 5.1.5–5.1.15 |
+| djangorestframework | 3.15.2 | 3.16.1 | CVE-2026-114137 (token revocation in TokenProxy), CVE-2026-114138 (Accept header DoS) |
+| react-router-dom (→ @remix-run/router) | 6.28.0 (router 1.21.0) | 6.30.3 (router 1.23.2) | CVE-2026-22029 (XSS via open redirects) |
 
-The other backend pins (`djangorestframework==3.15.2`, `psycopg[binary]==3.2.3`,
+The other backend pins (`psycopg[binary]==3.2.3`,
 `django-cors-headers==4.6.0`, `python-dotenv==1.0.1`, `gunicorn==23.0.0`) had no
 known HIGH/CRITICAL CVE with a fix available when this was reviewed.
 `gunicorn==23.0.0` already contains the fix for the HTTP request smuggling CVEs
