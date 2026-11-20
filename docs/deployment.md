@@ -120,6 +120,10 @@ Stop with `docker compose down`. Add `-v` to also delete the database volume.
 
 ## Backups
 
+Production uses automated Azure backups for `psql-manojasdyg-82692` (30-day retention, geo-redundant, point-in-time recovery), configured in `infra/terraform/postgres.tf`. The restore procedure and test log are in [RESTORE.md](RESTORE.md).
+
+For local databases, take a manual copy:
+
 ```powershell
 pg_dump -U meeting_app -h localhost -d meeting_rooms -F c -f meeting_rooms_backup.dump
 ```
@@ -135,4 +139,4 @@ The local setup is for development. Before other people use it:
 - Serve Django with a production WSGI server such as gunicorn. It is not in `requirements.txt` yet.
 - Add authentication. The API currently has none, so anyone who can reach it can book, edit or cancel.
 - Serve the frontend build (`npm run build`) behind HTTPS.
-- Schedule `pg_dump` backups.
+- Apply `infra/terraform/postgres.tf` for automated backups and test a restore following [RESTORE.md](RESTORE.md).
