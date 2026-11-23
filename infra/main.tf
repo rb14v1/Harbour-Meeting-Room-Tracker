@@ -22,9 +22,9 @@ provider "azurerm" {
 
 resource "azurerm_postgresql_flexible_server" "postgresql" {
   tags = var.common_tags
-  name                   = "psql-manojasdyg-82692"
-  resource_group_name    = "manojasdyg-82692"
-  location               = "South India"
+  name                   = "psql-meet-harb1"
+  resource_group_name    = "meet-harb1"
+  location               = "eastus2"
   version                = "16"
   # B_Standard_B1ms is a valid SKU name and is listed as offered in uksouth (Azure's capabilities API
   # confirms it, no restriction flag), but regional hardware stock for it has been intermittently
@@ -70,7 +70,7 @@ data "azurerm_private_dns_zone" "postgresql_dns_zone" {
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgresql_dns_zone_link" {
   tags = var.common_tags
-  name                  = "link-manojasdyg-82692"
+  name                  = "link-meet-harb1"
   resource_group_name   = var.hub_resource_group
   private_dns_zone_name = data.azurerm_private_dns_zone.postgresql_dns_zone.name
   virtual_network_id    = var.vnet_id
@@ -78,9 +78,9 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgresql_dns_zone_li
 
 resource "azurerm_private_endpoint" "postgresql_pe" {
   tags = var.common_tags
-  name                = "pe-psql-manojasdyg-82692"
-  resource_group_name = "manojasdyg-82692"
-  location            = "South India"
+  name                = "pe-psql-meet-harb1"
+  resource_group_name = "meet-harb1"
+  location            = "eastus2"
   subnet_id           = var.subnet_id
 
   private_service_connection {
