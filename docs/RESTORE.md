@@ -2,7 +2,7 @@
 
 ## Backup configuration
 
-The production database is the Azure Database for PostgreSQL Flexible Server `psql-manojasdyg-82692`, defined in [`infra/terraform/postgres.tf`](../infra/terraform/postgres.tf).
+The production database is the Azure Database for PostgreSQL Flexible Server `psql-meet-harb1`, defined in [`infra/terraform/postgres.tf`](../infra/terraform/postgres.tf).
 
 | Setting | Value |
 |---|---|
@@ -14,7 +14,7 @@ The production database is the Azure Database for PostgreSQL Flexible Server `ps
 Check the live settings:
 
 ```powershell
-az postgres flexible-server show -g <resource-group> -n psql-manojasdyg-82692 --query "backup"
+az postgres flexible-server show -g <resource-group> -n psql-meet-harb1 --query "backup"
 ```
 
 ## Restore procedure (point-in-time recovery)
@@ -27,8 +27,8 @@ A restore always creates a **new** server. The original server is not changed.
    ```powershell
    az postgres flexible-server restore `
      -g <resource-group> `
-     --name psql-manojasdyg-82692-restore `
-     --source-server psql-manojasdyg-82692 `
+     --name psql-meet-harb1-restore `
+     --source-server psql-meet-harb1 `
      --restore-time "2026-01-01T10:00:00Z"
    ```
 
@@ -37,8 +37,8 @@ A restore always creates a **new** server. The original server is not changed.
    ```powershell
    az postgres flexible-server geo-restore `
      -g <resource-group> `
-     --name psql-manojasdyg-82692-geo `
-     --source-server psql-manojasdyg-82692 `
+     --name psql-meet-harb1-geo `
+     --source-server psql-meet-harb1 `
      --location <paired-region>
    ```
 
