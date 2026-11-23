@@ -1,4 +1,4 @@
-# Azure Database for PostgreSQL Flexible Server for manojasdyg-82692.
+# Azure Database for PostgreSQL Flexible Server for meet-harb1.
 # Automated backups: 30-day retention, geo-redundant (paired region) copies and
 # point-in-time recovery (PITR), which the flexible server enables with backups.
 # Restore procedure: docs/RESTORE.md
@@ -46,7 +46,7 @@ variable "storage_mb" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                = "psql-manojasdyg-82692"
+  name                = "psql-meet-harb1"
   resource_group_name = var.resource_group_name
   location            = var.location
   version             = "17"
