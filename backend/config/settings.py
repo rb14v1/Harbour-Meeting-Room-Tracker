@@ -58,6 +58,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "config.logging.RequestIDMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -116,3 +117,34 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS")
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "config.logging.RequestIDFilter"},
+    },
+    "formatters": {
+        "json": {
+            "()": "config.logging.JsonFormatter",
+            "format": "%(timestamp)s %(level)s %(name)s %(message)s %(request_id)s",
+        },
+    },
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {"handlers": ["stdout"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "django.server": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "gunicorn.error": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "gunicorn.access": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+    },
+}
