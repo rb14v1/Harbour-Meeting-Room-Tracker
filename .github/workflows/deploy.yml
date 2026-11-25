@@ -1,0 +1,89 @@
+name: Deploy to Azure
+
+# Rolls the images pushed by "Harbour Build" out to Azure Container Apps,
+# smoke-tests them and rolls back on failure.
+on:
+  workflow_run:
+    workflows: ["Harbour Build"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA whose images to deploy (default: head of main)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend and frontend
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'manojasdyg-82692' }}
+      BACKEND_APP: ${{ vars.AZURE_BACKEND_APP || 'manojasdyg-82692-backend' }}
+      FRONTEND_APP: ${{ vars.AZURE_FRONTEND_APP || 'manojasdyg-82692-frontend' }}
+      IMAGE_SHA: ${{ github.event.inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Add Container Apps CLI extension
+        run: az extension add --name containerapp --upgrade --only-show-errors
+
+      - name: Resolve image names
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          registry="${{ secrets.ACR_NAME }}.azurecr.io"
+          echo "BACKEND_IMAGE=${registry}/${repo}:backend-${IMAGE_SHA}" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=${registry}/${repo}:frontend-${IMAGE_SHA}" >> "$GITHUB_ENV"
+          echo "SUFFIX=r${{ github.run_number }}-${IMAGE_SHA:0:7}" >> "$GITHUB_ENV"
+
+      - name: Record running images for rollback
+        run: |
+          for pair in "BACKEND:$BACKEND_APP" "FRONTEND:$FRONTEND_APP"; do
+            prefix="${pair%%:*}"; app="${pair#*:}"
+            image=$(az containerapp show -n "$app" -g "$RESOURCE_GROUP" \
+              --query "properties.template.containers[0].image" -o tsv)
+            echo "PREVIOUS_${prefix}_IMAGE=${image}" >> "$GITHUB_ENV"
+          done
+
+      - name: Deploy backend
+        run: |
+          az containerapp update -n "$BACKEND_APP" -g "$RESOURCE_GROUP" \
+            --image "$BACKEND_IMAGE" --revision-suffix "$SUFFIX" --only-show-errors
+
+      - name: Deploy frontend
+        run: |
+          az containerapp update -n "$FRONTEND_APP" -g "$RESOURCE_GROUP" \
+            --image "$FRONTEND_IMAGE" --revision-suffix "$SUFFIX" --only-show-errors
+
+      - name: Smoke test
+        run: |
+          fqdn() { az containerapp show -n "$1" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv; }
+          retry="--fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors --max-time 15"
+          backend=$(fqdn "$BACKEND_APP"); frontend=$(fqdn "$FRONTEND_APP")
+          curl $retry "https://${backend}/healthz"
+          curl $retry "https://${backend}/readyz"
+          curl $retry "https://${backend}/api/health"
+          curl $retry "https://${frontend}/healthz"
+
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          for pair in "BACKEND:$BACKEND_APP" "FRONTEND:$FRONTEND_APP"; do
+            prefix="${pair%%:*}"; app="${pair#*:}"
+            var="PREVIOUS_${prefix}_IMAGE"; previous="${!var:-}"
+            if [ -n "$previous" ]; then
+              az containerapp update -n "$app" -g "$RESOURCE_GROUP" --image "$previous" \
+                --revision-suffix "rb${{ github.run_number }}-${prefix,,}" --only-show-errors || true
+            fi
+          done

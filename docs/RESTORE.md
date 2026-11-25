@@ -2,14 +2,14 @@
 
 ## Backup configuration
 
-The production database is the Azure Database for PostgreSQL Flexible Server `psql-manojasdyg-82692`, defined in [`infra/terraform/postgres.tf`](../infra/terraform/postgres.tf).
+The production database is the Azure Database for PostgreSQL Flexible Server `psql-manojasdyg-82692`, defined in [`infra/main.tf`](../infra/main.tf).
 
 | Setting | Value |
 |---|---|
 | Automated backups | Enabled (managed by Azure, daily snapshots plus continuous WAL archiving) |
-| Retention | `backup_retention_days = 30` |
+| Retention | `backup_retention_days = 35` |
 | Off-region copy | `geo_redundant_backup_enabled = true` (backups replicated to the paired region) |
-| Point-in-time recovery | Any point within the last 30 days |
+| Point-in-time recovery | Any point within the last 35 days |
 
 Check the live settings:
 

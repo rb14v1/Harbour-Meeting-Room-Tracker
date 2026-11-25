@@ -113,6 +113,8 @@ healthz.py           API and database health check
 
 `infra/` and `docker-compose.yml` run the same stack in containers (PostgreSQL, gunicorn, nginx). Local development doesn't need them. See [deployment](docs/deployment.md#docker-optional).
 
+Azure Container Apps deployment, pipelines and rollback: [deployment](docs/deployment.md#azure-deployment-container-apps).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)

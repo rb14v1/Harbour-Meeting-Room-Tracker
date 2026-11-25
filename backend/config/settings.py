@@ -56,6 +56,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "config.health.HealthCheckMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -92,6 +93,10 @@ DATABASES = {
         "PASSWORD": os.environ["DB_PASSWORD"],
         "HOST": _env_required("DB_HOST"),
         "PORT": os.getenv("DB_PORT", "5432"),
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+        "CONN_HEALTH_CHECKS": True,
+        # Azure Database for PostgreSQL requires TLS: set DB_SSLMODE=require there.
+        "OPTIONS": {"sslmode": os.environ["DB_SSLMODE"].strip()} if os.getenv("DB_SSLMODE", "").strip() else {},
     }
 }
 
@@ -113,3 +118,10 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+
+# Set DJANGO_BEHIND_PROXY=1 behind TLS-terminating ingress (Azure Container Apps).
+if os.getenv("DJANGO_BEHIND_PROXY", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

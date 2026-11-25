@@ -120,7 +120,7 @@ Stop with `docker compose down`. Add `-v` to also delete the database volume.
 
 ## Backups
 
-Production uses automated Azure backups for `psql-manojasdyg-82692` (30-day retention, geo-redundant, point-in-time recovery), configured in `infra/terraform/postgres.tf`. The restore procedure and test log are in [RESTORE.md](RESTORE.md).
+Production uses automated Azure backups for `psql-manojasdyg-82692` (35-day retention, geo-redundant, point-in-time recovery), configured in [`infra/main.tf`](../infra/main.tf). The restore procedure and test log are in [RESTORE.md](RESTORE.md).
 
 For local databases, take a manual copy:
 
@@ -130,13 +130,77 @@ pg_dump -U meeting_app -h localhost -d meeting_rooms -F c -f meeting_rooms_backu
 
 Restore into an empty database with `pg_restore -U meeting_app -h localhost -d meeting_rooms meeting_rooms_backup.dump`.
 
+## Azure deployment (Container Apps)
+
+```
+push to main
+  -> CI                  tests, migration check, image build + /healthz smoke test
+  -> Harbour Build       gitleaks, semgrep, trivy gate, then build and push images to ACR
+  -> Deploy to Azure     roll both Container Apps to the new image, smoke test, roll back on failure
+```
+
+| Piece | Where |
+|---|---|
+| Database | Azure Database for PostgreSQL Flexible Server, private endpoint ([infra/main.tf](../infra/main.tf)) |
+| Backend | Container App from `backend/Dockerfile`, port 8080 |
+| Frontend | Container App from `frontend/Dockerfile` (nginx, port 8080) |
+| Images | `<ACR_NAME>.azurecr.io/<owner>/<repo>:backend-<sha>` and `:frontend-<sha>` |
+
+### One-time setup
+
+1. Apply `infra/` with Terraform. Outputs `postgresql_host` and `postgresql_password` feed the next step.
+2. Create the two Container Apps in the shared Container Apps Environment, with external ingress and the target port set to 8080.
+3. Configure the backend (secrets and environment variables):
+
+   ```bash
+   export RESOURCE_GROUP=manojasdyg-82692 BACKEND_APP=manojasdyg-82692-backend
+   export DB_HOST=<postgresql_host> DB_PASSWORD=<postgresql_password>
+   export DJANGO_SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(50))")
+   export FRONTEND_ORIGIN=https://<frontend-fqdn>
+   bash infra/azure/configure-backend.sh
+   ```
+
+4. In GitHub, add repository secrets `AZURE_CREDENTIALS` and `ACR_NAME`. Optionally add variables `AZURE_RESOURCE_GROUP`, `AZURE_BACKEND_APP`, `AZURE_FRONTEND_APP`. The defaults are `manojasdyg-82692`, `manojasdyg-82692-backend` and `manojasdyg-82692-frontend`.
+5. Create a GitHub environment named `production`. Add required reviewers there to gate deployments.
+6. Give the Container Apps pull access to the registry (`AcrPull` on the ACR for each app's managed identity).
+
+### Backend environment
+
+| Variable | Value on Azure |
+|---|---|
+| `DJANGO_DEBUG` | `0` |
+| `DJANGO_SECRET_KEY` | Container App secret `django-secret-key` |
+| `DJANGO_ALLOWED_HOSTS` | Backend ingress FQDN |
+| `CORS_ALLOWED_ORIGINS` | Frontend origin, `https://...` |
+| `CSRF_TRUSTED_ORIGINS` | `https://<backend-fqdn>` |
+| `DJANGO_BEHIND_PROXY` | `1` (trusts `X-Forwarded-Proto`, sets secure cookies) |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` | Terraform outputs (`postgres` database, `psqladmin` user) |
+| `DB_PASSWORD` | Container App secret `db-password` |
+| `DB_SSLMODE` | `require` (Flexible Server enforces TLS) |
+| `RUN_MIGRATIONS` | `1` (default). Set `0` to run `python manage.py migrate` as a separate release step |
+
+The container applies migrations on start. The first run creates the `btree_gist` extension, which Terraform allow-lists through `azure.extensions`.
+
+### Probes
+
+| Path | Checks | Use |
+|---|---|---|
+| `/healthz` | Process is up, no database access | Liveness, Docker `HEALTHCHECK` |
+| `/readyz` | Database reachable (503 otherwise) | Readiness |
+| `/api/health` | API routing | Smoke test |
+
+Both probes bypass `ALLOWED_HOSTS`, because Container Apps probes use the pod IP as Host.
+
+### Rolling back
+
+The deploy workflow records the running images before updating and restores them if the smoke test fails. To roll back by hand, run **Deploy to Azure** from the Actions tab with the SHA of a previously built commit.
+
 ## Before any shared or production use
 
 The local setup is for development. Before other people use it:
 
 - Set `DJANGO_DEBUG=0` and a real `DJANGO_SECRET_KEY`.
 - Set `DJANGO_ALLOWED_HOSTS` to the real host name.
-- Serve Django with a production WSGI server such as gunicorn. It is not in `requirements.txt` yet.
 - Add authentication. The API currently has none, so anyone who can reach it can book, edit or cancel.
 - Serve the frontend build (`npm run build`) behind HTTPS.
-- Apply `infra/terraform/postgres.tf` for automated backups and test a restore following [RESTORE.md](RESTORE.md).
+- Apply `infra/` for automated backups and test a restore following [RESTORE.md](RESTORE.md).
