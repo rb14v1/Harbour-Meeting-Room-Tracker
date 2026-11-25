@@ -1,8 +1,11 @@
 # Build context: repository root
-FROM python:3.13-slim
+FROM python:3.13.9-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+
+# Pull in OS-level security patches released after the base image was built.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 
