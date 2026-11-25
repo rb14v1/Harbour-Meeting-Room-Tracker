@@ -52,11 +52,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
+    "django_prometheus",
     "meetings",
 ]
 
 MIDDLEWARE = [
     "config.health.HealthCheckMiddleware",
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "config.logging.RequestIDMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -65,6 +68,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -125,3 +129,34 @@ if os.getenv("DJANGO_BEHIND_PROXY", "0") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "config.logging.RequestIDFilter"},
+    },
+    "formatters": {
+        "json": {
+            "()": "config.logging.JsonFormatter",
+            "format": "%(timestamp)s %(level)s %(name)s %(message)s %(request_id)s",
+        },
+    },
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {"handlers": ["stdout"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "django.server": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "gunicorn.error": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+        "gunicorn.access": {"handlers": ["stdout"], "level": LOG_LEVEL, "propagate": False},
+    },
+}
