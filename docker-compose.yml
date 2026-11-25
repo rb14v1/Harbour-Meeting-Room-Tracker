@@ -7,7 +7,7 @@ name: meeting-room-tracker
 
 services:
   db:
-    image: postgres:17
+    image: postgres:17.7
     # DB_PASSWORD comes from backend\.env. The shell maps it to POSTGRES_PASSWORD
     # so the password is not written into this file.
     env_file: ./backend/.env
